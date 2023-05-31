@@ -42,7 +42,8 @@ public class AgentCustomerMatcher {
     for (Attribute attribute : customer.getAttributes()) {
       Query query = new BooleanQuery.Builder()
               .add(new TermQuery(new Term("attributeName", attribute.getName())), BooleanClause.Occur.MUST)
-              .add(IntPoint.newRangeQuery("proficiency", attribute.getProficiency(), 5), BooleanClause.Occur.MUST)
+              .add(IntPoint.newRangeQuery("proficiency", attribute
+                      .getProficiency(), 5), BooleanClause.Occur.MUST)
               .build();
 
       TopDocs topDocs = searcher.search(query, 10);

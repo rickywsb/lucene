@@ -7,19 +7,19 @@ public class Main {
     try {
       AgentCustomerMatcher matcher = new AgentCustomerMatcher();
 
-      // Here you should create Attribute instances for your Agents and Customers
+      // create Attribute instances for your Agents and Customers
 
       // Define agent1 attributes
       List<Attribute> agent1Attributes = new ArrayList<>();
-      agent1Attributes.add(new Attribute("Language", 3));
-
+      agent1Attributes.add(new Attribute("Sales", 3));
+      agent1Attributes.add(new Attribute("Language", 5));
       // Define agent2 attributes
       List<Attribute> agent2Attributes = new ArrayList<>();
       agent2Attributes.add(new Attribute("Language", 4));
 
       // Define customer attributes
       List<Attribute> customerAttributes = new ArrayList<>();
-      customerAttributes.add(new Attribute("Language", 3));
+      customerAttributes.add(new Attribute("Language", 5));
 
       // Create Agent and Customer instances with their respective attributes
       Agent agent1 = new Agent("1", agent1Attributes);
