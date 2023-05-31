@@ -1,30 +1,18 @@
 import lombok.Data;
-
+import java.util.List;
 
 @Data
 public class Customer {
   private String id;
-  private String skill;
-  private int proficiencyLevel;
+  private List<Attribute> attributes;
 
-  void setId(String id) {
+  public Customer(String id, List<Attribute> attributes) {
     this.id = id;
-  }
-  void setSkill(String skill) {
-    this.skill = skill;
-  }
-  void setProficiencyLevel(int proficiencyLevel) {
-    this.proficiencyLevel = proficiencyLevel;
-  }
-  public String getId(){
-    return id;
-  }
-  public String getSkill() {
-    return skill;
+    this.attributes = attributes;
   }
 
-  public int getProficiencyLevel(){
-    return proficiencyLevel;
+  public List<Attribute> getAttributes(){
+    return attributes;
   }
 
 }

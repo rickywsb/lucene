@@ -1,32 +1,23 @@
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+import java.util.List;
 
-@Getter
-@Setter
 @Data
 public class Agent {
   private String id;
-  private String skill;
-  private int proficiencyLevel;
-  void setId(String id) {
+  private List<Attribute> attributes;
+
+  public Agent(String id, List<Attribute> attributes) {
     this.id = id;
+    this.attributes = attributes;
   }
-  void setSkill(String skill) {
-    this.skill = skill;
+
+  public List<Attribute> getAttributes(){
+    return attributes;
   }
-  void setProficiencyLevel(int proficiencyLevel) {
-    this.proficiencyLevel = proficiencyLevel;
-  }
-  public  String getId(){
+
+  public String getId(){
     return id;
   }
 
-  public  String getSkill(){
-    return skill;
-  }
 
-  public int getProficiencyLevel() {
-    return proficiencyLevel;
-  }
 }
