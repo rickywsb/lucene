@@ -68,5 +68,46 @@ In the LuceneIndexManager and LuceneCustomerSearcher classes, we use Lucene's In
 
 
 
+public class LuceneIndexManager implements IndexManager {
+    private IndexWriter writer;
 
+    public LuceneIndexManager(IndexWriter writer) {
+        this.writer = writer;
+    }
+
+    public void add(Customer customer) throws IOException {
+        Document doc = createDocumentFromCustomer(customer);
+        writer.addDocument(doc);
+        writer.commit();
+    }
+
+    public void update(Customer customer) throws IOException {
+        Term term = new Term("id", customer.getId());
+        Document doc = createDocumentFromCustomer(customer);
+        writer.updateDocument(term, doc);
+        writer.commit();
+    }
+
+    public void remove(String customerId) throws IOException {
+        Term term = new Term("id", customerId);
+        writer.deleteDocuments(term);
+        writer.commit();
+    }
+
+    private Document createDocumentFromCustomer(Customer customer) {
+        Document doc = new Document();
+        doc.add(new StringField("id", customer.getId(), Field.Store.YES));
+
+        for (Attribute attribute : customer.getAttributes()) {
+            doc.add(new StringField("attribute", attribute.getName(), Field.Store.YES));
+            doc.add(new IntPoint("proficiency", attribute.getProficiency()));
+            doc.add(new StoredField("proficiency", attribute.getProficiency()));
+        }
+
+        doc.add(new LongPoint("enqueueTime", customer.getEnqueueTime()));
+        doc.add(new StoredField("enqueueTime", customer.getEnqueueTime()));
+
+        return doc;
+    }
+}
 
