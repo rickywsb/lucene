@@ -159,3 +159,9 @@ return matchingCustomers;
 ```
 
 }
+    
+    
+    Iterate over each skill of the expert agent.
+For each skill, create a Lucene range query that checks if the customer's proficiency requirement for that skill is greater than or equal to 4. In Lucene, we can use the IntPoint.newRangeQuery() method for this.
+Combine these range queries using a BooleanQuery, which allows us to apply an AND condition. This ensures that we only find customers who meet the proficiency requirements for each of the expert agent's skills.
+Execute this combined query using the IndexSearcher.search() method to get a list of matching customers.
