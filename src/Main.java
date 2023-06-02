@@ -1,5 +1,7 @@
 import java.io.IOException;
 import java.util.ArrayList;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
@@ -7,36 +9,36 @@ public class Main {
     try {
       AgentCustomerMatcher matcher = new AgentCustomerMatcher();
 
-      // create Attribute instances for your Agents and Customers
+      // Define attributes for agent and customer
+      List<Attribute> agentAttributes = new ArrayList<>();
+      agentAttributes.add(new Attribute("English", 5));
+      agentAttributes.add(new Attribute("Chinese", 2));
 
-      // Define agent1 attributes
-      List<Attribute> agent1Attributes = new ArrayList<>();
-      agent1Attributes.add(new Attribute("Sales", 3));
-      agent1Attributes.add(new Attribute("Language", 5));
-      // Define agent2 attributes
-      List<Attribute> agent2Attributes = new ArrayList<>();
-      agent2Attributes.add(new Attribute("Language", 4));
+      List<Attribute> customer1Attributes = new ArrayList<>();
+      customer1Attributes.add(new Attribute("English", 3));
+      customer1Attributes.add(new Attribute("Chinese", 1));
 
-      // Define customer attributes
-      List<Attribute> customerAttributes = new ArrayList<>();
-      customerAttributes.add(new Attribute("Language", 5));
+      List<Attribute> customer2Attributes = new ArrayList<>();
+      customer2Attributes.add(new Attribute("English", 5));
 
-      // Create Agent and Customer instances with their respective attributes
-      Agent agent1 = new Agent("1", agent1Attributes);
-      Agent agent2 = new Agent("2", agent2Attributes);
-      Customer customer = new Customer("1", customerAttributes);
+      // Create instances of Agent and Customers
+      Agent agent = new Agent("1", agentAttributes);
 
-      // Index the agents
-      matcher.indexAgent(agent1);
-      matcher.indexAgent(agent2);
+      Customer customer1 = new Customer("1", customer1Attributes, System.currentTimeMillis());
+      Thread.sleep(1000);  // To simulate passage of time
+      Customer customer2 = new Customer("2", customer2Attributes, System.currentTimeMillis());
 
-      // Find matching agents for the customer
-      List<Agent> matchingAgents = matcher.findMatchingAgents(customer);
+      // Index customers
+      matcher.indexCustomer(customer1);
+      matcher.indexCustomer(customer2);
 
-      for (Agent agent : matchingAgents) {
-        System.out.println("Matching agent: " + agent.getId());
+      // Search for matching customers for the agent
+      List<Customer> matchingCustomers = matcher.findMatchingCustomers(agent);
+
+      for (Customer customer : matchingCustomers) {
+        System.out.println("Matching customer: " + customer.getId());
       }
-    } catch (IOException e) {
+    } catch (IOException | InterruptedException e) {
       throw new RuntimeException(e);
     }
   }

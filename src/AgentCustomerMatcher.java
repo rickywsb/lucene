@@ -17,44 +17,51 @@ public class AgentCustomerMatcher {
     this.analyzer = new StandardAnalyzer();
   }
 
-  public void indexAgent(Agent agent) throws IOException {
+  public void indexCustomer(Customer customer) throws IOException {
     IndexWriterConfig config = new IndexWriterConfig(analyzer);
     IndexWriter writer = new IndexWriter(index, config);
 
-    for (Attribute attribute : agent.getAttributes()) {
+    for (Attribute attribute : customer.getAttributes()) {
       Document doc = new Document();
-      doc.add(new StringField("id", agent.getId(), Field.Store.YES));
+      doc.add(new StringField("id", customer.getId(), Field.Store.YES));
       doc.add(new StringField("attributeName", attribute.getName(), Field.Store.YES));
       doc.add(new IntPoint("proficiency", attribute.getProficiency()));
       doc.add(new StoredField("proficiency", attribute.getProficiency()));
+      doc.add(new LongPoint("enqueueTime", customer.getEnqueueTime()));
+      doc.add(new NumericDocValuesField("enqueueTime", customer.getEnqueueTime()));
       writer.addDocument(doc);
     }
 
     writer.close();
   }
 
-  public List<Agent> findMatchingAgents(Customer customer) throws IOException {
-    List<Agent> matchingAgents = new ArrayList<>();
+  public List<Customer> findMatchingCustomers(Agent agent) throws IOException {
+    List<Customer> matchingCustomers = new ArrayList<>();
 
     IndexReader reader = DirectoryReader.open(index);
     IndexSearcher searcher = new IndexSearcher(reader);
 
-    for (Attribute attribute : customer.getAttributes()) {
+    BooleanQuery.Builder finalQuery = new BooleanQuery.Builder();
+
+    for (Attribute attribute : agent.getAttributes()) {
       Query query = new BooleanQuery.Builder()
               .add(new TermQuery(new Term("attributeName", attribute.getName())), BooleanClause.Occur.MUST)
-              .add(IntPoint.newRangeQuery("proficiency", attribute
-                      .getProficiency(), 5), BooleanClause.Occur.MUST)
+              .add(IntPoint.newRangeQuery("proficiency", attribute.getProficiency(), 5), BooleanClause.Occur.MUST)
               .build();
+      finalQuery.add(query, BooleanClause.Occur.SHOULD);
+    }
+    TopDocs topDocs = searcher.search(finalQuery.build(), 10, new Sort(new SortField("enqueueTime", SortField.Type.LONG, true)));
 
-      TopDocs topDocs = searcher.search(query, 10);
-      for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-        Document doc = searcher.doc(scoreDoc.doc);
-        Agent agent = new Agent(doc.get("id"), null); // we're not fetching agent attributes here
-        matchingAgents.add(agent);
-      }
+    for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+      Document doc = searcher.doc(scoreDoc.doc);
+      Customer customer = new Customer();
+      customer.setId(doc.get("id"));
+      customer.setEnqueueTime(Long.parseLong(doc.get("enqueueTime")));
+
+      matchingCustomers.add(customer);
     }
 
     reader.close();
-    return matchingAgents;
+    return matchingCustomers;
   }
 }

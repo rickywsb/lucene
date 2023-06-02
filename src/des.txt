@@ -1,0 +1,258 @@
+Problem Statement
+
+ Limitations of Trie data structure
+
+1. Inability to support OR logic: The Trie data structure fundamentally supports prefix-based searches, which are highly suitable for certain use cases like auto-completion or prefix-based routing. However, it has limitations when it comes to supporting complex logical operations, such as OR. This is primarily because each path from the root to a leaf node in a Trie represents a unique sequence, and there's no direct mechanism to express an OR relationship between different sequences. For example, consider a scenario where a customer has proficiency requirements such as "English >= 3 OR Chinese >= 2". In the current Trie implementation, each proficiency requirement forms a unique path in the Trie. The system can't match a customer with an agent that meets just one of the proficiency requirements because it would imply traversing a separate path in the Trie. Thus, the OR logic becomes difficult to represent effectively in a Trie.
+2. Search and insert time complexity: The time complexity of search and insertion operations in a Trie is generally O(n), where n is the length of the key (in this case, the proficiency requirement). While this is efficient for certain scenarios, it may become a bottleneck when dealing with large datasets. This is because the time taken to search or insert data scales linearly with the size of the key. For instance, if a customer has a long list of proficiency requirements, the system would have to traverse a path in the Trie for each requirement, making the operation less efficient as the list grows.
+3. ~~//Difficulty in handling multiple proficiency requirements: The trie structure might not efficiently support customers with multiple proficiency requirements. It would have to traverse multiple separate paths in the trie (which represent OR logic) and combine those results to identify all possible matches, which can be complex and inefficient.//~~
+
+**Alternative index library approach Lucene**
+
+Apache Lucene is a powerful open-source search engine that provides an API for creating and managing document-based indices. It supports a variety of complex query types, including Boolean queries that allow for intricate combinations of subqueries using logical operators such as AND and OR.
+
+1. Time Complexity: Lucene significantly improves time complexity over traditional data structures like Trie.
+
+
+    - Indexing: Lucene's indexing process is quite efficient. It uses an inverted index structure, which is similar to the index at the end of a book. Each term (word or token) in a document is listed in this index along with the documents it appears in. The complexity of indexing each document is mainly O(n), where n is the number of terms in the document. ~~However, creating the final consolidated index, which is a sorted list of terms along with their corresponding documents, involves a sort operation which might take O(m log m), where m is the total number of unique terms in all documents. This is still quite efficient given the speed improvements during search operations.~~
+    - Searching: Lucene uses a data structure known as a "skip list" to speed up the search process in its index. A skip list is a probabilistic data structure that allows for fast search within an ordered sequence of elements. The key idea behind a skip list is that it allows for fast, O(log n) search times like a sorted binary tree, but without the need for complex rebalancing operations.
+
+        Because of the inverted index structure, searching for a term across numerous documents is a very quick operation, typically running in O(log m), where m is the number of terms. Complex searches with multiple terms and conditions (AND, OR) will naturally increase this complexity but due to the inherent efficiency of the inverted index, it is usually much faster than searching using Trie or other common data structures.
+
+2. Operation Logic:
+    - AND/OR Logic: One of the key features of Lucene is its support for Boolean logic in search queries. This allows us to easily implement AND/OR conditions when matching customers to agents. For example, if a customer requires either 'English' or 'Chinese' skills at a certain level, this could be represented as a BooleanQuery in Lucene where each clause corresponds to a skill requirement. The clauses are connected by a logical OR operator, meaning documents that satisfy either condition will be considered a match. Similarly, if a customer requires both 'English' and 'Chinese' skills, the clauses would be connected by a logical AND operator, and only documents that satisfy both conditions will be considered a match.
+    - Range Queries: A key feature of Lucene that is highly beneficial in our context is its support for range queries. Instead of a customer simply requiring an 'English' or 'Chinese' skill, they may also specify a particular proficiency level in these skills. In the case of an agent who is looking to match with high-need customers, they might want to limit their matches to customers with proficiency requirements above a certain level. With Lucene, we can use range queries like **`IntPoint.newRangeQuery`** to specify that we want to match documents (in our case, customers) where a certain field (such as the proficiency level for the 'English' skill) falls within a particular range (for example, proficiency levels 4 to 5). This capability allows an agent to efficiently find customers that fall within a specific proficiency level range, thus making it possible to optimize service allocation according to agent skill levels and customer needs.
+
+Lucene's rich feature set for complex querying, combined with its efficient search performance through the use of inverted indexing, makes it a strong candidate for improving the routing service's ability to match customers and agents.
+
+Design and Implementation
+
+Lucene works through a process of indexing and querying. During indexing, it creates an inverted index from the document fields. During querying, it parses and executes the query on the indexed data.
+
+Document schema design:
+
+1. Document schema design: The document schema in Lucene serves as a blueprint for the documents to be indexed. It specifies the structure and type of each field in a document. A field is a named section of a Document that can be stored and retrieved independently from other sections.
+    - Possible Approach 1: **Indexing Customers (Recommended)**
+    The schema for a Customer document might look like this:
+
+        ```
+
+        public class CustomerDocument {
+            StringField id;
+            List<StringField> attributeNames;
+            List<IntPoint> proficiencyLevels;
+            LongPoint enqueueTime;
+        }
+
+        {
+          "id": "customer1",
+          "attributeNames": ["English", "Spanish"],
+          "proficiencyLevels": [3, 4],
+          "enqueueTime": 1613493758337
+        }
+        ```
+
+        A StringField is used for the id field as it is both indexed and stored, and we need the exact value. StringField is used for attribute names as well, as we would be matching these exactly. IntPoint is used for proficiency levels to allow for efficient range queries, and LongPoint for enqueue time to enable sorting.
+
+
+    **Pros:**
+
+    - Direct Querying: Since each customer's proficiency requirements are indexed, we can construct Boolean OR/AND queries to find all customers who can be serviced by an available agent. This leads to direct and efficient querying.
+    - Flexibility: The ability to handle complex queries (like AND/OR conditions) allows the system to match a wide variety of customer-agent pairs based on proficiency requirements.
+    - Do not need to change exsiting index structure
+
+    **Cons:**
+
+    - Write-heavy: With the continuous inflow of customers, the system may need to handle a high volume of writes to the index. Depending on the implementation details and usage patterns, this might impact performance.
+
+    - Possible **Approach 2: Indexing Agents**
+    The schema for an Agent document might look like this:
+
+        ```
+        javaCopy code
+        public class AgentDocument {
+            StringField id;
+            List<StringField> attributeNames;
+            List<IntPoint> proficiencyLevels;
+        }
+
+        ```
+
+        Here, the same principles apply: StringField for id and attribute names for exact matching, and IntPoint for proficiency levels to allow for range queries. The agent documents do not need an enqueueTime field.
+
+        **Pros:**
+
+        - Reduced Write Operations: As agents' skills and proficiency levels change less frequently, there will be fewer write operations compared to customer indexing.
+
+        **Cons:**
+
+        - Indirect Querying: While the index contains data about the agent's proficiency, it doesn't directly index the customers' requirements. To find matching customers, we would need to scan through the attributes of each agent in the index to find those with the required proficiency levels, then check which customers these agents can service. (直接说con 一句话）
+        - ~~Limited Flexibility: This approach is less flexible in handling complex queries (like AND/OR conditions). Depending on the implementation details, it might be more challenging to match a wide variety of customer-agent pairs based on proficiency requirements.~~
+
+
+Use cases discussion:
+
+**Use Case 1: An agent is available who can service customers with proficiency in English >= 3 OR Chinese >= 2**
+
+**Approach 1 - Indexing Customers:** Since each customer's proficiency requirements are indexed, we can construct a Boolean OR query to find all customers who require English >=3 or Chinese >=2. The result of the query will be all customers who can be serviced by this agent. This approach enables efficient, flexible queries for matching customers to the agent's skills.
+
+**Approach 2 - Indexing Agents:** This approach is less direct for this use case. While the index contains data about the agent's proficiency, it doesn't directly index the customers' requirements. To find matching customers, we would need to scan through the attributes of each agent in the index to find agents with the required proficiency levels, then check which customers these agents can service.
+
+**Use Case 2: An agent is available who can service customers with proficiency in English >= 3 AND Sales >= 4**
+
+**Approach 1 - Indexing Customers:** Similar to the first use case, we can construct a Boolean AND query to find all customers who require English >=3 and Sales >=4. This approach provides a direct way to match customers to the agent's skills.
+
+**Approach 2 - Indexing Agents:** For this use case, the agent indexing approach is less direct. While the agent's proficiency is indexed, the index doesn't directly contain the customers' requirements. We would need to scan through the attributes of each agent in the index to find those with the required proficiency levels, then check which customers these agents can service.
+
+Interfaces and Methods Implemenation
+
+what kind of interface we need to realize add contact, remove contact, update contact, please give me the basic implementation and parameters
+
+First, let's define our **`IndexManager`** interface which will take care of adding, updating and removing entries from the index.
+
+```
+javaCopy code
+import java.io.IOException;
+
+public interface IndexManager {
+    void add(Customer customer) throws IOException;
+    void update(Customer customer) throws IOException;
+    void remove(String customerId) throws IOException;
+}
+
+```
+
+Next, the **`CustomerSearcher`** interface is for searching through the indexed data:
+
+```
+javaCopy code
+import java.io.IOException;
+import java.util.List;
+
+public interface CustomerSearcher {
+    List<Customer> findMatchingCustomers(Agent agent) throws IOException;
+}
+
+```
+
+A possible implementation of these interfaces could look like this:
+
+```
+javaCopy code
+public class LuceneIndexManager implements IndexManager {
+    private IndexWriter writer;
+
+    public LuceneIndexManager(IndexWriter writer) {
+        this.writer = writer;
+    }
+
+    public void add(Customer customer) throws IOException {
+        Document doc = createDocumentFromCustomer(customer);
+        writer.addDocument(doc);
+        writer.commit();
+    }
+
+    public void update(Customer customer) throws IOException {
+        Term term = new Term("id", customer.getId());
+        Document doc = createDocumentFromCustomer(customer);
+        writer.updateDocument(term, doc);
+        writer.commit();
+    }
+
+    public void remove(String customerId) throws IOException {
+        Term term = new Term("id", customerId);
+        writer.deleteDocuments(term);
+        writer.commit();
+    }
+
+    private Document createDocumentFromCustomer(Customer customer) {
+        Document doc = new Document();
+        doc.add(new StringField("id", customer.getId(), Field.Store.YES));
+
+        for (Attribute attribute : customer.getAttributes()) {
+            doc.add(new StringField("attribute", attribute.getName(), Field.Store.YES));
+            doc.add(new IntPoint("proficiency", attribute.getProficiency()));
+            doc.add(new StoredField("proficiency", attribute.getProficiency()));
+        }
+
+        doc.add(new LongPoint("enqueueTime", customer.getEnqueueTime()));
+        doc.add(new StoredField("enqueueTime", customer.getEnqueueTime()));
+
+        return doc;
+    }
+}
+
+```
+
+In the **`LuceneIndexManager`** class above, we use the **`IndexWriter`** class from Lucene to add, update and remove documents from the index. Each customer's details are first converted into a Lucene **`Document`** before being written to the index. Note that **`createDocumentFromCustomer`** is a private method used to convert the Customer object into a Lucene **`Document`** object.
+
+These methods all throw **`IOException`**, which must be handled by the caller. The exception is thrown if there's an issue accessing the index, such as when the disk is full or the file permissions are incorrect.
+
+The matching **`LuceneCustomerSearcher`** would implement the **`CustomerSearcher`** interface. Note that this is just a basic template and would need to be expanded upon to provide the full functionality:
+
+```
+javaCopy code
+public class LuceneCustomerSearcher implements CustomerSearcher {
+    private IndexSearcher searcher;
+
+    public LuceneCustomerSearcher(IndexSearcher searcher) {
+        this.searcher = searcher;
+    }
+
+    public List<Customer> findMatchingCustomers(Agent agent) throws IOException {
+        // Construct and execute the Lucene query here
+        // ...
+    }
+}
+
+```
+
+Optimized Search -
+
+Use Case:
+We have an agent who is an expert with a proficiency level of 5 in multiple skills. In our contact center, we want to ensure that this expert agent is allocated to customers who require a high level of proficiency, specifically greater than or equal to 4. This is because an agent with a high proficiency level might be overqualified for customers with lower proficiency requirements. Therefore, the system should only consider customers with a proficiency requirement of at least 4 for this particular agent.
+
+Solution:
+We can achieve this use case in our Lucene project by creating a query for each of the agent's skills that checks if the customer's proficiency requirement for that skill is at least 4. Here is how we can structure it in Java:
+
+public List<Customer> findMatchingCustomers(Agent agent) throws IOException {
+List<Customer> matchingCustomers = new ArrayList<>();
+
+```
+// This is the final query that we'll be adding to.
+BooleanQuery.Builder finalQuery = new BooleanQuery.Builder();
+
+for (Attribute attribute : agent.getAttributes()) {
+    if(attribute.getProficiency() > 4) {
+        // Create a range query for the proficiency level
+        Query rangeQuery = IntPoint.newRangeQuery("proficiency", 4, 5);  // 4 to 5
+        Query termQuery = new TermQuery(new Term("attribute", attribute.getName()));
+
+        // Combine the queries with AND logic
+        Query combinedQuery = new BooleanQuery.Builder()
+                .add(termQuery, BooleanClause.Occur.MUST)
+                .add(rangeQuery, BooleanClause.Occur.MUST)
+                .build();
+
+        // Add the combined query to the final query with OR logic
+        finalQuery.add(combinedQuery, BooleanClause.Occur.SHOULD);
+    }
+}
+
+// Search for the customers
+TopDocs topDocs = searcher.search(finalQuery.build(), MAX_RESULTS);
+
+// Process the results
+for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+    Document doc = searcher.doc(scoreDoc.doc);
+    Customer customer = new Customer();
+    customer.setId(doc.get("id"));
+    // Populate other fields here...
+
+    matchingCustomers.add(customer);
+}
+
+return matchingCustomers;
+
+```
+
+}
