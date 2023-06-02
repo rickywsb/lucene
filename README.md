@@ -111,3 +111,51 @@ public class LuceneIndexManager implements IndexManager {
     }
 }
 
+    Use Case:
+We have an agent who is an expert with a proficiency level of 5 in multiple skills. In our contact center, we want to ensure that this expert agent is allocated to customers who require a high level of proficiency, specifically greater than or equal to 4. This is because an agent with a high proficiency level might be overqualified for customers with lower proficiency requirements. Therefore, the system should only consider customers with a proficiency requirement of at least 4 for this particular agent.
+
+Solution:
+We can achieve this use case in our Lucene project by creating a query for each of the agent's skills that checks if the customer's proficiency requirement for that skill is at least 4. Here is how we can structure it in Java:
+
+public List<Customer> findMatchingCustomers(Agent agent) throws IOException {
+List<Customer> matchingCustomers = new ArrayList<>();
+
+```
+// This is the final query that we'll be adding to.
+BooleanQuery.Builder finalQuery = new BooleanQuery.Builder();
+
+for (Attribute attribute : agent.getAttributes()) {
+    if(attribute.getProficiency() > 4) {
+        // Create a range query for the proficiency level
+        Query rangeQuery = IntPoint.newRangeQuery("proficiency", 4, 5);  // 4 to 5
+        Query termQuery = new TermQuery(new Term("attribute", attribute.getName()));
+
+        // Combine the queries with AND logic
+        Query combinedQuery = new BooleanQuery.Builder()
+                .add(termQuery, BooleanClause.Occur.MUST)
+                .add(rangeQuery, BooleanClause.Occur.MUST)
+                .build();
+
+        // Add the combined query to the final query with OR logic
+        finalQuery.add(combinedQuery, BooleanClause.Occur.SHOULD);
+    }
+}
+
+// Search for the customers
+TopDocs topDocs = searcher.search(finalQuery.build(), MAX_RESULTS);
+
+// Process the results
+for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+    Document doc = searcher.doc(scoreDoc.doc);
+    Customer customer = new Customer();
+    customer.setId(doc.get("id"));
+    // Populate other fields here...
+
+    matchingCustomers.add(customer);
+}
+
+return matchingCustomers;
+
+```
+
+}
