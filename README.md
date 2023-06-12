@@ -165,3 +165,78 @@ return matchingCustomers;
 For each skill, create a Lucene range query that checks if the customer's proficiency requirement for that skill is greater than or equal to 4. In Lucene, we can use the IntPoint.newRangeQuery() method for this.
 Combine these range queries using a BooleanQuery, which allows us to apply an AND condition. This ensures that we only find customers who meet the proficiency requirements for each of the expert agent's skills.
 Execute this combined query using the IndexSearcher.search() method to get a list of matching customers.
+
+
+
+
+
+# One pager three questions
+
+**Lucene Search Improvement Design Document**
+
+**Objective:**
+To enhance the proficiency matching system to address three key problems:
+
+1. Subset Problem: An agent's skills being a subset of a customer's requirements.
+2. Proficiency Level Ranges: A customer's proficiency requirement being a "greater than" or "less than" condition.
+3. Complex Boolean Logic: A customer's requirement involving an OR condition or more complex logic.
+
+**Approach:**
+
+1. **Subset Problem - Using Global Map**
+To ensure we only match agents to customers when the agent's skills entirely cover the customer's requirements, we will create a global map containing the full set of skills and attributes across all agents. This will allow us to identify any skills that an agent lacks.
+    
+    Before querying Lucene, we will check the agent's skills against the global map to determine any missing skills. These missing skills will then be included in the Lucene query as NOT requirements, ensuring that the results only include customers whose requirements are fully covered by the agent's skills.
+    
+
+For example, when we have Agent(P1 : 3, P2:4), All skill sets (P1, P2, P3, P4, P5), 
+
+Contact1(P1:2) Contact2(P2:3) Contact3(P1:2 and P2:5) Contact4(P1:2 and P2:3 and P3:1)
+
+Before going to query, we first check with the global map that the agent does not have P3 to P5
+
+Query **`(P1:[* TO 3] OR P2:[* TO 4]) NOT P3 NOT P4 NOT P5 ...`**
+
+return  Contact1 and Contact2
+
+1. **Proficiency Level Ranges - Using minProficiency and maxProficiency**
+To support "greater than" or "less than" conditions in a customer's proficiency requirements, we will add **`minProficiency`** and **`maxProficiency`** fields for each skill in the Lucene document. These fields will define a range of acceptable proficiency levels for the skill.
+    
+    For instance, when a customer has a requirement like "P1 >= 3", we will transform this into a Lucene indexable format, setting **`minProficiency`** to 3 and **`maxProficiency`** to 5 (assuming 5 is the highest possible level).
+    
+    - If **`exactProficiency`** is not null, this means that the customer requires a specific proficiency level. In this case, we would want to search only for agents with that specific proficiency. So the query would be: **`"English": "exactProficiency"`**. For example, if **`exactProficiency`** is 3, we would want to search for agents with English proficiency of exactly 3.
+    - If **`exactProficiency`** is null, then we check **`minProficiency`** and **`maxProficiency`**. If they are not null, this means the customer has a range of acceptable proficiency levels. So the query would be: **`"English": "[minProficiency TO maxProficiency]"`**. For example, if **`minProficiency`** is 2 and **`maxProficiency`** is 4, we would want to search for agents with English proficiency between 2 and 4.
+    - If all three values are null, this means the customer has no requirement for this particular proficiency. We can either exclude this proficiency from the query, or we can treat it as if the customer has a requirement of any proficiency level. In this case, the query would be: **`"English": "[* TO *]"`**, which would match any agent regardless of their English proficiency level.
+    
+    if (customer.exactProficiency != null) {
+    query = "English:" + customer.exactProficiency;
+    } else if (customer.minProficiency != null && customer.maxProficiency != null) {
+    query = "English:[" + customer.minProficiency + " TO " + customer.maxProficiency + "]";
+    } else {
+    query = "English:[* TO *]";
+    }
+    
+
+1. **Complex Boolean Logic - Using Multiple Lucene Documents**
+For customers with requirements involving an OR condition or more complex logic, we will create multiple Lucene documents, each representing a different OR clause.
+    
+    For instance, if a customer's requirement is "(P1 >= 3 AND P2 <= 2) OR P3 = 1", we will index this as two separate documents in Lucene:
+    
+    - Document 1 for the condition "P1 >= 3 AND P2 <= 2"
+    - Document 2 for the condition "P3 = 1"
+    
+    Step 1: Check with Global Map
+    
+    Our Global Map might look like this:
+    
+    ```
+    
+    GlobalMap = {P1, P2, P3, P4, P5}
+    
+    ```
+    
+    Step 2: Constructing the Query
+    
+    We construct the Lucene query with the known proficiencies of the agent (P1 and P2) and add a NOT clause for each proficiency the agent does not possess.
+    
+    query = "P1:[* TO 4]" OR "P2:[* TO 3]" AND NOT "P3:[* TO *]" AND NOT "P4:[* TO *]" AND NOT "P5:[* TO *]"
